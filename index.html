@@ -55,11 +55,11 @@
   .tally button[aria-pressed=true] b{color:var(--ink)}
   .tally button[aria-pressed=true] span{color:var(--soft)}
 
-  /* ── 컨트롤 (Figma: gap 20, pad-bottom 20, 하단 보더) ── */
+  /* ── 컨트롤 (Figma: gap 20, pad-bottom 60, 하단 보더) ── */
   .controls{
     position:sticky;top:0;z-index:20;background:var(--surface-2);
     display:flex;flex-direction:column;gap:20px;
-    padding:12px 0 20px;border-bottom:1px solid var(--line);
+    padding:12px 0 60px;border-bottom:1px solid var(--line);
   }
   .searchrow{display:flex;gap:8px}
   input[type=search]{
@@ -84,7 +84,11 @@
     padding:9px 14px;font-size:12.5px;line-height:18px;font-weight:500;color:var(--ink);
   }
   .actionbar .act:hover{background:var(--line-soft)}
-  .status{font-size:11.5px;line-height:16px;font-weight:600;color:var(--soft);margin-left:auto}
+  .status{
+    font-size:11.5px;line-height:16px;font-weight:600;color:var(--soft);margin-left:auto;
+    background:transparent;border:1px solid transparent;padding:6px 10px;text-align:right;
+  }
+  .status:hover{border-color:var(--line);background:var(--surface)}
 
   /* ── 상품 카드 (Figma: pad 30/24/14, gap 12) ── */
   .row{background:var(--surface);border:1px solid var(--line);border-top:0;padding:30px 24px 14px}
@@ -117,7 +121,23 @@
 
   /* 우측 (Figma Frame 6: gap 12) */
   .col-r{display:flex;flex-direction:column;gap:12px}
+  .r-top{display:flex;align-items:center;justify-content:space-between;gap:12px}
   .r-head{font-size:14px;font-weight:700;color:var(--soft);line-height:1.2}
+  .r-acts{flex:0 0 auto;display:flex;align-items:center;gap:6px}
+  .rsave{
+    flex:0 0 auto;background:var(--ink);color:var(--on-dark);border-color:var(--ink);
+    padding:7px 12px;font-size:12px;line-height:16px;font-weight:600;white-space:nowrap;
+  }
+  .rsave:hover{background:#000}
+  .rsave:disabled{background:var(--surface-2);color:var(--faint);border-color:var(--line);cursor:default}
+  .rsave.done{background:var(--celadon);border-color:var(--celadon);color:var(--white)}
+  .ricon{
+    flex:0 0 auto;width:32px;height:32px;padding:0;
+    display:inline-flex;align-items:center;justify-content:center;
+    background:var(--surface-2);border:1px solid var(--line);color:var(--soft);
+  }
+  .ricon:hover{background:var(--canvas);color:var(--ink)}
+  .ricon svg{width:16px;height:16px;display:block}
   .groups{display:flex;flex-direction:column}
   .group{display:flex;flex-direction:column;gap:10px;padding:12px 0;border-bottom:1px solid var(--line-soft)}
   .group:last-child{border-bottom:0}
@@ -158,6 +178,15 @@
   .dlg h2{margin:0 0 4px;font-size:16px;letter-spacing:-0.02em}
   .dlg p{margin:0 0 12px;font-size:12px;color:var(--soft)}
   .dlg textarea{width:100%;height:230px;font-family:var(--sf);font-size:12px;padding:10px;border:1px solid var(--line);border-radius:2px;background:#fff;color:var(--ink);line-height:1.6;letter-spacing:0}
+  .hlist{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:2px;overflow:hidden;max-height:320px;overflow-y:auto}
+  .hitem{display:flex;align-items:center;gap:12px;padding:10px 12px;border-bottom:1px solid var(--line-soft);background:var(--white)}
+  .hitem:last-child{border-bottom:0}
+  .hitem .ht{flex:1;min-width:0}
+  .hitem .htime{font-size:12px;font-weight:600;line-height:16px}
+  .hitem .hsum{font-size:11px;color:var(--faint);line-height:15px}
+  .hitem button{flex:0 0 auto;padding:6px 10px;font-size:11.5px;font-weight:600}
+  .hempty{padding:28px 16px;text-align:center;color:var(--faint);font-size:12px;line-height:18px;background:var(--white)}
+
   .dlg .acts{display:flex;gap:8px;margin-top:12px;justify-content:flex-end}
   .dlg .acts button{padding:8px 14px;font-size:12.5px}
 
@@ -197,7 +226,7 @@
     <button class="act" id="copyAll">보이는 항목 적요 전체 복사</button>
     <button class="act" id="copyTsv">상품명 + 적요 복사 (시트용)</button>
     <button class="act" id="reset">체크 초기화</button>
-    <span class="status" id="status">불러오는 중…</span>
+    <button class="status" id="status" title="저장 기록 보기">불러오는 중…</button>
   </div>
 
   <div id="list"></div>
@@ -210,6 +239,15 @@
   <div class="acts">
     <button id="dlgCopy" class="btn-solid">복사</button>
     <button id="dlgClose">닫기</button>
+  </div>
+</div></dialog>
+
+<dialog id="histDlg"><div class="dlg">
+  <h2>저장 기록</h2>
+  <p>최근 저장 시점 10개까지 보관됩니다. 되돌리기를 하면 현재 상태도 기록에 남습니다.</p>
+  <div class="hlist" id="histList"></div>
+  <div class="acts">
+    <button id="histClose">닫기</button>
   </div>
 </div></dialog>
 
@@ -361,33 +399,51 @@ let saveTimer = null;
 function makeRow(seed, i){
   const f = {};
   OPTS.forEach(o => f[o.k] = (seed.flags||'').includes(o.k));
-  return {
+  const r = {
     id: seed.id || ('s'+i),
     brand: seed.brand, name: seed.name, parts: seed.parts,
     tag: seed.tag||'', check: seed.check||'', pickup: !!seed.pickup,
     f, etc: seed.etc||'', cond: seed.cond||'', override: seed.override ?? null, custom: !!seed.custom
   };
+  /* c = 저장 확정된 상태. 목록/집계는 이 값 기준으로만 움직입니다. */
+  r.c = seed.c ? {...seed.c} : snapOf(r);
+  return r;
+}
+function snapOf(r){
+  return {
+    flags: OPTS.filter(o => r.f[o.k]).map(o => o.k).join(''),
+    etc: r.etc||'', cond: r.cond||'', override: r.override ?? null
+  };
+}
+const isDirty = r => JSON.stringify(snapOf(r)) !== JSON.stringify(r.c);
+function applySnap(r, s){
+  OPTS.forEach(o => r.f[o.k] = (s.flags||'').includes(o.k));
+  r.etc = s.etc||''; r.cond = s.cond||''; r.override = s.override ?? null;
 }
 
 /* ── 적요 문구 조합 ── */
-function buildText(r){
-  if (r.override !== null && r.override !== undefined) return r.override;
+function buildFrom(has, etcRaw, condRaw, override){
+  if (override !== null && override !== undefined) return override;
   const parts = [];
   for (const k of ORDER){
-    if (!r.f[k]) continue;
+    if (!has(k)) continue;
     const o = OPTS.find(x => x.k === k);
     let t = o.text;
-    if ((k === 'D' || k === 'E') && r.f.F) t += '(솔잎)';
+    if ((k === 'D' || k === 'E') && has('F')) t += '(솔잎)';
     parts.push(t);
   }
-  const etc = (r.etc||'').trim();
+  const etc = (etcRaw||'').trim();
   if (etc) parts.push(etc);
   if (!parts.length) return '';
-  const cond = (r.cond||'').trim();
+  const cond = (condRaw||'').trim();
   if (cond) parts[parts.length-1] += '(' + cond + ')';
   return parts.join(', ');
 }
-const hasAny = r => buildText(r).trim().length > 0;
+/* 화면에 보이는 작업 중 문구 */
+function buildText(r){ return buildFrom(k => !!r.f[k], r.etc, r.cond, r.override); }
+/* 저장 확정된 문구 — 필터와 집계는 이 값만 사용 */
+function committedText(r){ return buildFrom(k => (r.c.flags||'').includes(k), r.c.etc, r.c.cond, r.c.override); }
+const hasAny = r => committedText(r).trim().length > 0;
 
 /* ── 렌더 ── */
 const listEl = document.getElementById('list');
@@ -437,8 +493,8 @@ function rowEl(r){
     lead.appendChild(ps);
   }
   const fields = document.createElement('div'); fields.className = 'fields';
-  fields.appendChild(txtInput('기타 구성품 추가시 입력 (예: 기프트 박스)', r.etc, v => { r.etc = v; r.override = null; }));
-  fields.appendChild(txtInput('조건 추가시 입력 (예: 2점 구매 시)', r.cond, v => { r.cond = v; r.override = null; }));
+  fields.appendChild(txtInput('기타 구성품 추가시 입력 (예: 기프트 박스)', r.etc, v => { r.etc = v; r.override = null; }, () => sync()));
+  fields.appendChild(txtInput('조건 추가시 입력 (예: 2점 구매 시)', r.cond, v => { r.cond = v; r.override = null; }, () => sync()));
   lead.appendChild(fields);
   L.appendChild(lead);
 
@@ -457,9 +513,36 @@ function rowEl(r){
 
   /* 우측 */
   const R = document.createElement('div'); R.className = 'col-r';
+  const rtop = document.createElement('div'); rtop.className='r-top';
   const rh = document.createElement('div'); rh.className='r-head';
   rh.textContent = '선물 포장 클릭 시 하단 적요란에 추가';
-  R.appendChild(rh);
+  rtop.appendChild(rh);
+  const racts = document.createElement('div'); racts.className='r-acts';
+  const saveBtn = document.createElement('button');
+  saveBtn.className='rsave'; saveBtn.type='button'; saveBtn.textContent='해당 설정 저장';
+  saveBtn.onclick = () => {
+    r.c = snapOf(r);
+    pushHistory(r.brand + ' · ' + r.name);
+    save();
+    saveBtn.textContent='저장됨'; saveBtn.classList.add('done'); saveBtn.disabled = true;
+    setTimeout(render, 600);
+  };
+  racts.appendChild(saveBtn);
+
+  const undoBtn = document.createElement('button');
+  undoBtn.className='ricon'; undoBtn.type='button';
+  undoBtn.title='변경 취소 · 마지막 저장 상태로'; undoBtn.setAttribute('aria-label','변경 취소');
+  undoBtn.innerHTML = '<svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">'
+    + '<path d="M2.5 10C2.5 11.4834 2.93987 12.9334 3.76398 14.1668C4.58809 15.4001 5.75943 16.3614 7.12987 16.9291C8.50032 17.4968 10.0083 17.6453 11.4632 17.3559C12.918 17.0665 14.2544 16.3522 15.3033 15.3033C16.3522 14.2544 17.0665 12.918 17.3559 11.4632C17.6453 10.0083 17.4968 8.50032 16.9291 7.12987C16.3614 5.75943 15.4001 4.58809 14.1668 3.76398C12.9334 2.93987 11.4834 2.5 10 2.5C7.90329 2.50789 5.89081 3.32602 4.38333 4.78333L2.5 6.66667M6.66667 6.66667H2.5V2.5" '
+    + 'stroke="currentColor" stroke-width="1.66667" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  undoBtn.onclick = () => {
+    applySnap(r, r.c);
+    save();
+    el.replaceWith(rowEl(r));
+  };
+  racts.appendChild(undoBtn);
+  rtop.appendChild(racts);
+  R.appendChild(rtop);
 
   const groups = document.createElement('div'); groups.className='groups';
   GROUPS.forEach(g => {
@@ -472,7 +555,11 @@ function rowEl(r){
       b.className = 'chip' + (o.dep ? ' dep' : '');
       b.type = 'button'; b.textContent = o.label;
       b.setAttribute('aria-pressed', String(!!r.f[o.k]));
-      b.onclick = () => { r.f[o.k] = !r.f[o.k]; r.override = null; save(); render(); };
+      b.onclick = () => {
+        r.f[o.k] = !r.f[o.k]; r.override = null;
+        b.setAttribute('aria-pressed', String(!!r.f[o.k]));
+        sync(); save();
+      };
       cw.appendChild(b);
     });
     gw.appendChild(cw);
@@ -480,11 +567,9 @@ function rowEl(r){
   });
   R.appendChild(groups);
 
-  if (r.f.F && !r.f.D && !r.f.E){
-    const w = document.createElement('div'); w.className='warn';
-    w.textContent = '솔잎은 보자기 포장에 붙는 옵션입니다. 보자기 항목을 함께 체크하세요.';
-    R.appendChild(w);
-  }
+  const warn = document.createElement('div'); warn.className='warn';
+  warn.textContent = '솔잎은 보자기 포장에 붙는 옵션입니다. 보자기 항목을 함께 체크하세요.';
+  R.appendChild(warn);
 
   const text = buildText(r);
   const strip = document.createElement('div'); strip.className='strip';
@@ -494,7 +579,7 @@ function rowEl(r){
   out.className='out'; out.rows=1; out.value=text; out.spellcheck=false;
   out.placeholder = '포장 항목을 체크하면 여기에 문구가 만들어집니다';
   out.setAttribute('aria-label', r.name + ' 적요 문구');
-  out.addEventListener('input', () => { r.override = out.value; autoGrow(out); save(); renderTally(); });
+  out.addEventListener('input', () => { r.override = out.value; autoGrow(out); sync(); save(); });
   strip.appendChild(out);
   const cp = document.createElement('button');
   cp.className='cp'; cp.type='button'; cp.textContent='복사';
@@ -509,25 +594,38 @@ function rowEl(r){
   R.appendChild(strip);
   requestAnimationFrame(()=>autoGrow(out));
 
-  if (r.override !== null && r.override !== undefined){
-    const n = document.createElement('div'); n.className='editnote';
-    n.innerHTML = '<span>직접 수정한 문구입니다</span>';
-    const btn = document.createElement('button');
-    btn.textContent = '체크 기준으로 되돌리기';
-    btn.onclick = () => { r.override = null; save(); render(); };
-    n.appendChild(btn);
-    R.appendChild(n);
+  const enote = document.createElement('div'); enote.className='editnote';
+  const espan = document.createElement('span'); espan.textContent='직접 수정한 문구입니다';
+  enote.appendChild(espan);
+  const ebtn = document.createElement('button');
+  ebtn.textContent = '체크 기준으로 되돌리기';
+  ebtn.onclick = () => { r.override = null; sync(); save(); };
+  enote.appendChild(ebtn);
+  R.appendChild(enote);
+
+  /* 행 내부만 갱신 — 목록 재정렬은 저장 버튼을 눌렀을 때만 일어납니다 */
+  function sync(){
+    if (r.override === null || r.override === undefined){
+      out.value = buildText(r); autoGrow(out);
+    }
+    warn.style.display = (r.f.F && !r.f.D && !r.f.E) ? '' : 'none';
+    enote.style.display = (r.override !== null && r.override !== undefined) ? '' : 'none';
+    const d = isDirty(r);
+    racts.style.display = d ? '' : 'none';
+    saveBtn.disabled = false;
+    saveBtn.classList.remove('done');
+    saveBtn.textContent = '해당 설정 저장';
   }
+  sync();
 
   body.appendChild(R);
   return el;
 }
 
-function txtInput(ph, val, onchange){
+function txtInput(ph, val, onchange, after){
   const i = document.createElement('input');
   i.type='text'; i.placeholder=ph; i.value = val || '';
-  i.addEventListener('input', () => { onchange(i.value); save(); });
-  i.addEventListener('change', () => render());
+  i.addEventListener('input', () => { onchange(i.value); after && after(); save(); });
   return i;
 }
 function autoGrow(t){ t.style.height='auto'; t.style.height=t.scrollHeight+'px'; }
@@ -611,6 +709,7 @@ document.getElementById('copyTsv').onclick = () => {
 };
 document.getElementById('reset').onclick = () => {
   if (!confirm('모든 체크와 직접 수정 내용을 원본 시트 상태로 되돌립니다. 진행할까요?')) return;
+  pushHistory('초기화 직전 상태');
   rows = SEED.map(makeRow);
   save(); renderFilters(); render();
   setStatus('원본 상태로 되돌렸습니다.');
@@ -649,7 +748,7 @@ function serialize(){
     id:r.id, brand:r.brand, name:r.name, parts:r.parts, tag:r.tag,
     check:r.check, pickup:r.pickup,
     flags: OPTS.filter(o => r.f[o.k]).map(o => o.k).join(''),
-    etc:r.etc, cond:r.cond, override:r.override, custom:r.custom
+    etc:r.etc, cond:r.cond, override:r.override, custom:r.custom, c:r.c
   })));
 }
 function save(){
@@ -663,11 +762,75 @@ function save(){
 }
 function setStatus(s){ document.getElementById('status').textContent = s; }
 
+/* ── 저장 기록 ── */
+const HKEY = KEY + ':hist';
+let hist = [];
+
+function summarize(data){
+  try {
+    const arr = JSON.parse(data);
+    let set = 0;
+    arr.forEach(o => {
+      const c = o.c || {flags:o.flags, etc:o.etc, cond:o.cond, override:o.override};
+      if (buildFrom(k => (c.flags||'').includes(k), c.etc, c.cond, c.override).trim()) set++;
+    });
+    return '지정 ' + set + '건 · 미지정 ' + (arr.length - set) + '건';
+  } catch(e){ return ''; }
+}
+
+function pushHistory(label){
+  const data = serialize();
+  hist.unshift({ t:Date.now(), label:label||'저장', sum:summarize(data), data });
+  hist = hist.slice(0, 10);
+  STORE.set(HKEY, JSON.stringify(hist)).catch(()=>{});
+}
+
+function openHistory(){
+  const box = document.getElementById('histList');
+  box.innerHTML = '';
+  if (!hist.length){
+    const e = document.createElement('div'); e.className='hempty';
+    e.textContent = '아직 저장 기록이 없습니다. 상품별 "해당 설정 저장"을 누르면 그 시점이 기록됩니다.';
+    box.appendChild(e);
+  } else {
+    hist.forEach((v, i) => {
+      const it = document.createElement('div'); it.className='hitem';
+      const t = document.createElement('div'); t.className='ht';
+      const tt = document.createElement('div'); tt.className='htime';
+      tt.textContent = new Date(v.t).toLocaleString('ko-KR',
+        {month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}) + (i === 0 ? ' · 최신' : '');
+      const ss = document.createElement('div'); ss.className='hsum';
+      ss.textContent = (v.label||'') + (v.sum ? ' · ' + v.sum : '');
+      t.appendChild(tt); t.appendChild(ss); it.appendChild(t);
+      const b = document.createElement('button');
+      b.type='button'; b.textContent = '이 버전으로';
+      b.onclick = () => {
+        if (!confirm('이 시점 상태로 되돌립니다. 지금 상태는 기록에 남습니다. 진행할까요?')) return;
+        pushHistory('되돌리기 직전 상태');
+        rows = JSON.parse(v.data).map(makeRow);
+        save(); renderFilters(); render();
+        document.getElementById('histDlg').close();
+        setStatus('이전 버전으로 되돌렸습니다.');
+      };
+      it.appendChild(b);
+      box.appendChild(it);
+    });
+  }
+  document.getElementById('histDlg').showModal();
+}
+
+document.getElementById('status').onclick = openHistory;
+document.getElementById('histClose').onclick = () => document.getElementById('histDlg').close();
+
 async function load(){
   let saved = null;
   try {
     const raw = await STORE.get(KEY);
     if (raw) saved = JSON.parse(raw);
+  } catch(e){}
+  try {
+    const h = await STORE.get(HKEY);
+    if (h) hist = JSON.parse(h) || [];
   } catch(e){}
   if (Array.isArray(saved) && saved.length){
     rows = saved.map(makeRow);
