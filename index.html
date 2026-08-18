@@ -1,0 +1,667 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root{
+    --canvas:#E3E7E0;      /* bg/canvas — 액션 버튼 배경 */
+    --surface:#FBFBF8;     /* bg/surface — 카드, 검색창, 집계 */
+    --surface-2:#F2F3EE;   /* bg/surface-2 — 페이지 배경 */
+    --white:#FFFFFF;
+    --ink:#131E1A;
+    --soft:#5C6A63;
+    --faint:#8D9891;
+    --on-dark:#F6F7F4;
+    --line:#CBD2C8;
+    --line-soft:#DFE3DB;
+    --brass:#8A6B2E;
+    --celadon:#3F7565;
+    --celadon-soft:#E1EDE7;
+    --alert:#9A4A2C;
+    --alert-soft:#F5E6DF;
+    --sf:-apple-system,BlinkMacSystemFont,'SF Pro Text','SF Pro Display','SF Pro','Helvetica Neue','Apple SD Gothic Neo','Malgun Gothic','Segoe UI',sans-serif;
+  }
+
+  *{box-sizing:border-box;letter-spacing:0}
+  body{
+    margin:0;background:var(--surface-2);color:var(--ink);
+    font-family:var(--sf);font-size:14px;line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1080px;margin:0 auto;padding:0 24px 64px}
+
+  /* ── 헤더 (Figma: pad 32/0/20, gap 8) ── */
+  header{padding:32px 0 20px;display:flex;flex-direction:column;gap:8px}
+  h1{margin:0;font-size:34px;font-weight:700;letter-spacing:-0.03em;line-height:40px}
+  .sub{margin:0;color:var(--soft);font-size:13px;line-height:20px;max-width:640px}
+
+  /* ── 집계 = 상태 필터 (Figma: cell pad 11/14, gap 2) ── */
+  .tally-wrap{padding-top:10px}
+  .tally{
+    display:grid;grid-template-columns:repeat(5,1fr);
+    border:1px solid var(--line);border-radius:3px;overflow:hidden;background:var(--surface);
+  }
+  .tally button{
+    all:unset;box-sizing:border-box;cursor:pointer;display:flex;flex-direction:column;gap:2px;
+    padding:11px 14px;border-right:1px solid var(--line-soft);
+    font-family:var(--sf);transition:background .12s;
+  }
+  .tally button:last-child{border-right:0}
+  .tally button:hover{background:var(--surface-2)}
+  .tally button:focus-visible{outline:2px solid var(--celadon);outline-offset:-2px}
+  .tally b{font-size:20px;font-weight:700;letter-spacing:-0.02em;line-height:24px;font-variant-numeric:tabular-nums}
+  .tally span{font-size:10.5px;color:var(--faint);line-height:14px}
+  .tally button[aria-pressed=true]{background:var(--canvas)}
+  .tally button[aria-pressed=true] b{color:var(--ink)}
+  .tally button[aria-pressed=true] span{color:var(--soft)}
+
+  /* ── 컨트롤 (Figma: gap 20, pad-bottom 60, 하단 보더) ── */
+  .controls{
+    position:sticky;top:0;z-index:20;background:var(--surface-2);
+    display:flex;flex-direction:column;gap:20px;
+    padding:12px 0 60px;border-bottom:1px solid var(--line);
+  }
+  .searchrow{display:flex;gap:8px}
+  input[type=search]{
+    flex:1;min-width:0;font-family:var(--sf);font-size:14px;line-height:20px;
+    padding:10px 12px;letter-spacing:0;
+    border:1px solid var(--line);border-radius:3px;background:var(--surface);color:var(--ink);
+  }
+  input[type=search]::placeholder{color:var(--faint)}
+  input:focus,textarea:focus{outline:2px solid var(--celadon);outline-offset:-1px;border-color:transparent}
+  button{font-family:var(--sf);cursor:pointer;border-radius:3px;border:1px solid var(--line);background:var(--surface);color:var(--ink);letter-spacing:0}
+  button:focus-visible{outline:2px solid var(--celadon);outline-offset:1px}
+  .btn-solid{background:var(--ink);color:var(--on-dark);border-color:var(--ink);padding:10px 16px;font-weight:600;font-size:13px;line-height:20px;white-space:nowrap}
+
+  .filters{display:flex;gap:6px;flex-wrap:wrap}
+  .fchip{padding:5px 11px;font-size:12px;line-height:16px;border-radius:100px;color:var(--soft);background:transparent;border:1px solid var(--line)}
+  .fchip[aria-pressed=true]{background:var(--ink);color:var(--on-dark);border-color:var(--ink);font-weight:600}
+
+  /* ── 액션 바 (Figma: 버튼 fill=canvas + line 보더, pad 9/14, Medium 12.5) ── */
+  .actionbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:22px 0}
+  .actionbar .act{
+    background:var(--canvas);border:1px solid var(--line);
+    padding:9px 14px;font-size:12.5px;line-height:18px;font-weight:500;color:var(--ink);
+  }
+  .actionbar .act:hover{background:var(--line-soft)}
+  .status{font-size:11.5px;line-height:16px;font-weight:600;color:var(--soft);margin-left:auto}
+
+  /* ── 상품 카드 (Figma: pad 30/24/14, gap 12) ── */
+  .row{background:var(--surface);border:1px solid var(--line);border-top:0;padding:30px 24px 14px}
+  .row:first-of-type{border-top:1px solid var(--line);border-radius:3px 3px 0 0}
+  .row:last-of-type{border-radius:0 0 3px 3px}
+
+  .brand{font-size:17px;font-weight:700;color:var(--ink);line-height:1.2}
+
+  /* Name Block: gap 50, pad 3/0/20 */
+  .body{display:grid;grid-template-columns:1fr 1fr;gap:50px;padding:15px 0 20px}
+
+  /* 좌측: 상하 분리 (Figma Frame 7: gap 24, 상단 lead / 하단 tail) */
+  .col-l{display:flex;flex-direction:column;justify-content:space-between;gap:24px}
+  .lead{display:flex;flex-direction:column;gap:12px}
+  .pname{font-size:17px;font-weight:700;color:var(--soft);line-height:21px;letter-spacing:-0.01em}
+  .parts{font-size:15px;font-weight:600;color:var(--soft);line-height:1.25}
+  .fields{display:flex;flex-direction:column;gap:6px;padding-top:7px}
+  .fields input{
+    width:100%;font-family:var(--sf);font-size:12px;line-height:17px;padding:7px 9px;letter-spacing:0;
+    border:1px solid var(--line-soft);border-radius:2px;background:var(--surface-2);color:var(--ink);
+  }
+  .fields input::placeholder{color:var(--faint)}
+
+  .tail{display:flex;flex-direction:column;gap:12px}
+  .pills{display:flex;gap:4px;flex-wrap:wrap}
+  .pill{font-size:12px;font-weight:600;line-height:15px;padding:4px 6px;border-radius:2px}
+  .pill.tag{background:var(--celadon-soft);color:var(--celadon)}
+  .pill.chk{background:var(--alert-soft);color:var(--alert)}
+  .note{font-size:11px;color:var(--alert);line-height:16px}
+
+  /* 우측 (Figma Frame 6: gap 12) */
+  .col-r{display:flex;flex-direction:column;gap:12px}
+  .r-head{font-size:14px;font-weight:700;color:var(--soft);line-height:1.2}
+  .groups{display:flex;flex-direction:column}
+  .group{display:flex;flex-direction:column;gap:10px;padding:12px 0;border-bottom:1px solid var(--line-soft)}
+  .group:last-child{border-bottom:0}
+  .g-label{font-size:14px;font-weight:700;color:var(--soft);line-height:1.2}
+  .chips{display:flex;gap:5px;flex-wrap:wrap}
+  .chip{
+    padding:6px 10px;font-size:12px;line-height:16px;border-radius:2px;
+    background:var(--surface-2);border:1px solid var(--line-soft);color:var(--soft);
+    transition:background .12s,color .12s,border-color .12s;
+  }
+  .chip:hover{border-color:var(--celadon)}
+  .chip[aria-pressed=true]{background:var(--celadon);border-color:var(--celadon);color:var(--white);font-weight:600}
+  .chip.dep[aria-pressed=true]{background:var(--celadon-soft);border-color:var(--celadon);color:var(--celadon)}
+
+  /* ── 적요 스트립 (Figma: 액센트 바 없음, lab pad 11/9, out pad 10, cp pad 0/15) ── */
+  .strip{display:flex;margin-top:11px;border:1px solid var(--line);background:var(--white);border-radius:2px;overflow:hidden}
+  .strip>.lab{flex:0 0 auto;align-self:center;padding:0 9px 0 11px;font-size:12px;font-weight:700;color:var(--brass);white-space:nowrap}
+  .strip>.out{
+    flex:1;min-width:0;padding:10px 10px 10px 0;font-family:var(--sf);font-size:13px;font-weight:500;
+    line-height:19px;color:var(--ink);border:0;background:transparent;resize:none;overflow:hidden;letter-spacing:0;
+  }
+  .strip>.out::placeholder{color:var(--faint)}
+  .strip>.cp{
+    flex:0 0 auto;border:0;border-left:1px solid var(--line-soft);border-radius:0;
+    padding:0 15px;font-size:12px;font-weight:600;color:var(--soft);background:var(--surface-2);
+  }
+  .strip>.cp:hover,.strip>.cp.done{background:var(--celadon);color:var(--white)}
+
+  .warn{font-size:11px;color:var(--alert);margin-top:6px}
+  .editnote{font-size:10.5px;color:var(--brass);margin-top:6px;display:flex;gap:8px;align-items:center}
+  .editnote button{border:0;background:transparent;color:var(--faint);text-decoration:underline;font-size:10.5px;padding:0}
+
+  .empty-state{padding:40px 16px;text-align:center;color:var(--faint);font-size:13px;background:var(--surface);border:1px solid var(--line);border-radius:3px}
+
+  dialog{border:1px solid var(--line);border-radius:4px;padding:0;background:var(--surface);max-width:min(560px,92vw);width:100%}
+  dialog::backdrop{background:rgba(19,30,26,.42)}
+  .dlg{padding:20px}
+  .dlg h2{margin:0 0 4px;font-size:16px;letter-spacing:-0.02em}
+  .dlg p{margin:0 0 12px;font-size:12px;color:var(--soft)}
+  .dlg textarea{width:100%;height:230px;font-family:var(--sf);font-size:12px;padding:10px;border:1px solid var(--line);border-radius:2px;background:#fff;color:var(--ink);line-height:1.6;letter-spacing:0}
+  .dlg .acts{display:flex;gap:8px;margin-top:12px;justify-content:flex-end}
+  .dlg .acts button{padding:8px 14px;font-size:12.5px}
+
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+  @media (max-width:820px){
+    .wrap{padding:0 16px 48px}
+    h1{font-size:25px;line-height:31px}
+    .controls{padding:10px 0 24px}
+    .tally{grid-template-columns:repeat(2,1fr)}
+    .tally button:nth-child(2n){border-right:0}
+    .tally button:nth-child(-n+4){border-bottom:1px solid var(--line-soft)}
+    .tally button:last-child{grid-column:1 / -1}
+    .body{grid-template-columns:1fr;gap:24px;padding:12px 0 16px}
+    .row{padding:20px 16px 14px}
+    .strip>.lab{display:none}
+    .strip>.out{padding-left:11px}
+    .status{margin-left:0;width:100%}
+  }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>선물포장 적요 생성기</h1>
+    <p class="sub">포장 구성을 체크하면 적요(포장란)에 넣을 문구가 만들어집니다. 복사해서 이카운트·카페24에 그대로 붙여넣으세요.</p>
+    <div class="tally-wrap"><div class="tally" id="tally"></div></div>
+  </header>
+
+  <div class="controls">
+    <div class="searchrow">
+      <input type="search" id="q" placeholder="상품명 · 브랜드 검색" autocomplete="off">
+      <button class="btn-solid" id="addBtn">상품 추가</button>
+    </div>
+    <div class="filters" id="filters"></div>
+  </div>
+
+  <div class="actionbar">
+    <button class="act" id="copyAll">보이는 항목 적요 전체 복사</button>
+    <button class="act" id="copyTsv">상품명 + 적요 복사 (시트용)</button>
+    <button class="act" id="reset">체크 초기화</button>
+    <span class="status" id="status">불러오는 중…</span>
+  </div>
+
+  <div id="list"></div>
+</div>
+
+<dialog id="dlg"><div class="dlg">
+  <h2 id="dlgTitle">복사</h2>
+  <p>아래 내용을 길게 눌러 전체 선택 후 복사하세요.</p>
+  <textarea id="dlgText" readonly></textarea>
+  <div class="acts">
+    <button id="dlgCopy" class="btn-solid">복사</button>
+    <button id="dlgClose">닫기</button>
+  </div>
+</div></dialog>
+
+<script>
+/* ── 포장 항목 정의 (시트의 9개 포장 컬럼) ── */
+const OPTS = [
+  {k:'G', g:'기타',   label:'전용 파우치', text:'전용 파우치'},
+  {k:'A', g:'박스',   label:'공예 박스',   text:'공예 박스'},
+  {k:'B', g:'박스',   label:'오동나무',    text:'오동나무 상자'},
+  {k:'C', g:'박스',   label:'브랜드 전용', text:'전용 패키지 박스'},
+  {k:'D', g:'보자기', label:'일반',        text:'보자기 포장'},
+  {k:'E', g:'보자기', label:'브랜드 전용', text:'전용 보자기 포장'},
+  {k:'F', g:'보자기', label:'+ 솔잎',      text:null, dep:true},
+  {k:'H', g:'기타',   label:'쇼핑백',      text:'선물용 쇼핑백'},
+];
+const GROUPS = ['박스','보자기','기타'];
+const ORDER = ['G','A','B','C','D','E','H'];
+
+/* ── 상품 데이터 ── */
+const D = (b,n,p,f,o={}) => ({brand:b,name:n,parts:p||'',flags:f||'',...o});
+const SEED = [
+  D('허명욱','[선물포장/한정수량] 동 컵 & 평접시 set (3ea) - 오프라인 픽업 수령 가능','동 컵 2ea, 평 접시(중) 1ea','ADF',{tag:'선물포장/한정수량',pickup:1}),
+  D('수토','[선물포장/한정수량] 도자합 set (2ea) - 오프라인 픽업 수령 가능','설(Seol) 1ea, 수록(Surok) 1ea','DF',{tag:'선물포장/한정수량',pickup:1}),
+  D('김현성','[선물포장/한정수량] 굽접시 set(2ea) - 오프라인 픽업 수령 가능','굽접시 2ea(S,L)','ADF',{tag:'선물포장/한정수량',pickup:1}),
+  D('전상근','[선물포장/한정수량] 흑자 고블렛 set(2ea) - 오프라인 픽업 수령 가능','흑자 고블렛잔 2ea, 굽다리 찬기 1ea','ADF',{tag:'선물포장/한정수량',pickup:1}),
+  D('김규태','[선물포장/한정수량] 고블렛잔 세트(2ea) - 오프라인 픽업 수령 가능','고블렛잔 2ea','ADF',{tag:'선물포장/한정수량',pickup:1}),
+  D('전상근','[선물포장/한정수량] 도자 접시 세트(3ea) - 오프라인 픽업 수령 가능','화형접시 1ea, 오잎찬기 1ea, 백자기와 소반(중) 1ea','ADF',{tag:'선물포장/한정수량',pickup:1}),
+  D('하경아','[선물포장/한정수량] 볼 & 컵 set(4ea) - 오프라인 픽업 수령 가능','stone cup 2ea, bowl mini 1ea, bowl S 1ea','ADF',{tag:'선물포장/한정수량',pickup:1}),
+  D('이우철','[바로배송/선물포장] 버블 잔 세트(잔 + 보울) - 오프라인 픽업 수령 가능','버블 잔 2ea, 버블 보울 L 1ea','ADF',{tag:'바로배송/선물포장',pickup:1}),
+  D('이우철','[바로배송/선물포장] 버블 굽 잔 세트(잔 + 보울) - 오프라인 픽업 수령 가능','버블 굽 잔 2ea, 버블 보울 L 1ea','ADF',{tag:'바로배송/선물포장',pickup:1}),
+  D('김쥬쥬 스튜디오','[바로배송/선물포장] 세라믹 글라스 set(2ea) - 오프라인 픽업 수령 가능','세라믹 글라스 2ea (옵션 선택)','CDFH',{tag:'바로배송/선물포장',pickup:1,cond:'2점 구매 시'}),
+
+  D('허명욱','[바로배송/한정수량] 옻칠 유기 술잔','술잔 1종','B',{tag:'바로배송/한정수량',cond:'2개 이상 구매 시'}),
+  D('허명욱','[바로배송/한정수량] 유기 수저 세트','수저 한벌 세트 (숟가락 1개, 젓가락 1쌍)','',{tag:'바로배송/한정수량',check:'포장 정보 미기재'}),
+  D('허명욱','[바로배송/한정수량] 동 컵','컵 1종','',{tag:'바로배송/한정수량',check:'포장 정보 미기재'}),
+  D('허명욱','[바로배송/한정수량] 베싸개 테이블매트 (타원)','테이블매트 1개','',{tag:'바로배송/한정수량',check:'포장 정보 미기재'}),
+  D('허명욱','[바로배송/한정수량] 타원 트레이 (대)','','D',{tag:'바로배송/한정수량'}),
+  D('허명욱','[선물포장] 타원 트레이 (대)','','D',{tag:'선물포장'}),
+  D('허명욱','[선물포장] 타원 트레이 (중)','','D',{tag:'선물포장'}),
+  D('허명욱','[선물 포장 제공] Gift Set (굽접시, 미니 보울)','굽접시 1, 미니 보울 1','ADG',{tag:'선물포장'}),
+  D('허명욱','[선물 포장 제공] Gift Set (굽접시, 수저)','굽접시 1, 숟가락 1, 젓가락 1','ADG',{tag:'선물포장'}),
+  D('허명욱','[선물 포장 제공] Gift Set (동 컵, 커피 드리퍼)','동 컵 1개, 드리퍼 1개','AD',{tag:'선물포장'}),
+  D('허명욱','[선물 포장 제공] Gift Set (동 컵, 커피 드리퍼, 커피 드립 주전자)','동 컵 1개, 드리퍼 1개, 커피 드립 주전자 1개','AD',{tag:'선물포장'}),
+  D('허명욱','[선물 포장 제공] Gift Set (수저)','숟가락 2, 젓가락 2','ADG',{tag:'선물포장'}),
+  D('허명욱','[선물 포장 제공] Gift Set (정사각 트레이 라운딩, 유기 술잔2)','정사각 트레이 라운딩 1개, 술잔 2개','AD',{tag:'선물포장'}),
+  D('허명욱','[선물 포장 제공] Gift Set (타원 트레이 3)','트레이(중) 3개','D',{tag:'선물포장'}),
+  D('허명욱','[선물 포장 제공] Gift Set (타원 트레이, 동 컵2)','트레이(중) 1개, 동 컵 2개','AD',{tag:'선물포장'}),
+  D('허명욱','[선물 포장 제공] Gift Set (타원 트레이, 유기 수저 세트2)','트레이(중) 1개, 수저 2세트','D',{tag:'선물포장'}),
+  D('허명욱','[선물 포장 제공] Gift Set (타원 트레이, 유기 술잔2)','트레이(소) 1개, 술잔 2개','AD',{tag:'선물포장'}),
+  D('허명욱','[선물 포장 제공] Gift Set (타원트레이, 수저)','타원 트레이 1, 숟가락 1, 젓가락 1','DG',{tag:'선물포장'}),
+  D('허명욱','[선물 포장 제공] Gift Set (타원트레이, 컵)','타원 트레이 1, 컵 1','ADG',{tag:'선물포장'}),
+  D('허명욱','[선물 포장 제공] Gift Set (평접시, 미니 보울)','평접시 1, 미니 보울 1','ADG',{tag:'선물포장'}),
+  D('허명욱','[선물 포장 제공] Gift Set (평접시, 수저)','평접시 1, 숟가락 1, 젓가락 1','ADG',{tag:'선물포장'}),
+  D('허명욱','[선물 포장 제공] 동 컵 선물 세트','컵 2개 세트','AD',{tag:'선물포장'}),
+  D('허명욱','[선물 포장 제공] 세라믹 머그 선물 세트','머그 2개 세트','AD',{tag:'선물포장'}),
+  D('허명욱','[선물 포장 제공] 세라믹 컵 선물 세트','컵 2개 세트','AD',{tag:'선물포장'}),
+  D('허명욱','[선물 포장 제공] 옻칠 유기 술잔 선물 세트','술잔 2개','BD',{tag:'선물포장'}),
+  D('허명욱','[선물 포장] 베싸개 테이블매트 (원형)','테이블매트 1종','D',{tag:'선물포장'}),
+  D('허명욱','[선물포장] 메탈 테이블매트 (원형)','테이블매트 1종','D',{tag:'선물포장'}),
+  D('허명욱','[선물포장] 메탈 테이블매트 (타원)','테이블매트 1종','D',{tag:'선물포장'}),
+  D('허명욱','[선물포장] 베싸개 테이블매트 (타원)','테이블매트 1종','D',{tag:'선물포장'}),
+  D('허명욱','[선물포장] 사각 트레이 라운딩','트레이 1개','D',{tag:'선물포장'}),
+  D('허명욱','[선물포장] 유기 수저 세트','수저 한벌 세트 (숟가락 1개, 젓가락 1쌍)','E',{tag:'선물포장'}),
+  D('허명욱','옻칠 유기 술잔','술잔 1종','A',{}),
+  D('허명욱','[선물포장] 세라믹 머그','머그 1종','',{tag:'선물포장',check:'태그는 [선물포장]인데 포장 내용 없음'}),
+  D('허명욱','[선물포장] 세라믹 컵','컵 1종','',{tag:'선물포장',check:'태그는 [선물포장]인데 포장 내용 없음'}),
+  D('허명욱','[선물포장] 숟가락 / 젓가락 (단품)','숟가락 1종 및 젓가락 1종 (단품 선택)','',{tag:'선물포장',check:'태그는 [선물포장]인데 포장 내용 없음'}),
+  D('허명욱','[선물포장] 옻칠 유기 면기','면기 1종','',{tag:'선물포장',check:'태그는 [선물포장]인데 포장 내용 없음'}),
+  D('허명욱','[선물포장] 옻칠 유기 파스타볼','면기 1종','',{tag:'선물포장',check:'태그는 [선물포장]인데 포장 내용 없음'}),
+  D('허명욱','평접시 (대)','평접시 (대) 1종','',{check:'포장 정보 미기재'}),
+  D('허명욱','평접시 (중)','평접시 (중) 1종','',{check:'포장 정보 미기재'}),
+  D('허명욱','평접시 (소)','평접시 (소) 1종','',{check:'포장 정보 미기재'}),
+
+  D('스튜디오 윤여동','[바로배송/선물포장] 디저트 커트러리 세트 - 골드','스푼 1개, 포크 1개','AD',{tag:'바로배송/선물포장'}),
+  D('스튜디오 윤여동','[바로배송/선물포장] 디저트 커트러리 세트 - 실버','스푼 1개, 포크 1개','AD',{tag:'바로배송/선물포장'}),
+  D('스튜디오 윤여동','[바로배송/선물포장] 라운드 굽접시 로우 선물세트','플레이트 2개','AD',{tag:'바로배송/선물포장'}),
+  D('스튜디오 윤여동','[바로배송/선물포장] 블루밍 디저트 픽 세트','디저트 픽 4개','AD',{tag:'바로배송/선물포장'}),
+  D('스튜디오 윤여동','[바로배송/선물포장] 스탬프 컵, 실버리 웨이브 컵 선물세트','컵 2개','AD',{tag:'바로배송/선물포장'}),
+  D('스튜디오 윤여동','[바로배송/선물포장] 카에리바나 잔 2개 선물세트','잔 2개 세트','AD',{tag:'바로배송/선물포장'}),
+  D('스튜디오 윤여동','[바로배송/선물포장] 카에리바나 잔 2개, 굽접시 선물세트','잔 2개, 굽접시 1개 세트','AD',{tag:'바로배송/선물포장'}),
+  D('스튜디오 윤여동','[바로배송/선물포장] 카에리바나 잔 3개 선물세트','잔 3개 세트','AD',{tag:'바로배송/선물포장'}),
+  D('스튜디오 윤여동','[선물 포장 제공] 라운드 굽접시 로우 2개, 질감 디저트 포크 4개 선물세트','디저트 포크 4개, 굽접시 2개','AD',{tag:'선물포장'}),
+  D('스튜디오 윤여동','[선물 포장 제공] 라운드 굽접시 로우 2개, 트레이 선물세트','트레이 1개, 굽접시 2개','AD',{tag:'선물포장'}),
+  D('스튜디오 윤여동','[선물 포장 제공] 스탬프 컵, 실버리 웨이브 컵, 링 패턴 라운드 플레이트 선물세트','플레이트 1개, 컵 2개','AD',{tag:'선물포장'}),
+  D('스튜디오 윤여동','[선물 포장 제공] 스탬프 컵, 실버리 웨이브 컵, 알루미늄 트레이 선물세트','트레이 1개, 컵 2개','AD',{tag:'선물포장'}),
+  D('스튜디오 윤여동','[선물 포장 제공] 알루미늄 트레이, 미니 버켓 알루미늄 선물세트','트레이 1개, 미니 버켓 1개','AD',{tag:'선물포장'}),
+  D('스튜디오 윤여동','[선물 포장 제공] 카에리바나 잔 2개, 미니 버켓 알루미늄 선물세트','잔 2개, 미니 버켓 세트','AD',{tag:'선물포장'}),
+  D('스튜디오 윤여동','[선물 포장 제공] 카에리바나 잔 2개, 미니 버켓 적동 선물세트','잔 2개, 미니 버켓 세트','AD',{tag:'선물포장'}),
+  D('스튜디오 윤여동','카에리바나 잔 Ⅰ','잔 1개','B'),
+  D('스튜디오 윤여동','카에리바나 잔 Ⅱ','잔 1개','B'),
+  D('스튜디오 윤여동','카에리바나 잔 Ⅲ','잔 1개','B'),
+  D('스튜디오 윤여동','뱅쇼 크리스마스 오너먼트 SET','오너먼트 10개','A'),
+
+  D('김쥬쥬 스튜디오','[선물포장] 버블 드롭 글라스 Flat Blue Dot','','H',{tag:'선물포장',etc:'선물용 상자',cond:'2점 구매 시'}),
+  D('김쥬쥬 스튜디오','[선물포장] 버블 드롭 글라스 Flat White Dot','','H',{tag:'선물포장',etc:'선물용 상자',cond:'2점 구매 시'}),
+  D('김쥬쥬 스튜디오','[선물포장] 버블 드롭 글라스 Round Blue Dot','','H',{tag:'선물포장',etc:'선물용 상자',cond:'2점 구매 시'}),
+  D('김쥬쥬 스튜디오','[선물포장] 버블 드롭 글라스 Round White Dot','','H',{tag:'선물포장',etc:'선물용 상자',cond:'2점 구매 시'}),
+  D('김쥬쥬 스튜디오','[선물포장] 버블 와인 버킷_손잡이형','','H',{tag:'선물포장',etc:'선물용 상자',cond:'2점 구매 시'}),
+  D('김쥬쥬 스튜디오','[선물포장] 블룸 세라믹 와인잔 Blue Large','','H',{tag:'선물포장',etc:'선물용 상자',cond:'2점 구매 시'}),
+  D('김쥬쥬 스튜디오','[선물포장] 블룸 세라믹 와인잔 Blue Small','','H',{tag:'선물포장',etc:'선물용 상자',cond:'2점 구매 시'}),
+  D('김쥬쥬 스튜디오','[선물포장] 블룸 세라믹 와인잔 Classic','','H',{tag:'선물포장',etc:'선물용 상자',cond:'2점 구매 시'}),
+  D('김쥬쥬 스튜디오','[선물포장] 블룸 세라믹 와인잔 Sky Large','','H',{tag:'선물포장',etc:'선물용 상자',cond:'2점 구매 시'}),
+  D('김쥬쥬 스튜디오','[선물포장] 블룸 세라믹 와인잔 Sky Small','','H',{tag:'선물포장',etc:'선물용 상자',cond:'2점 구매 시'}),
+
+  D('프린트베이커리','매난국죽 자수 도자기 미니 쿠션 (단품/세트)','단품: 쿠션 1개 / 세트: 쿠션 2개','',{etc:'자석 상자 포장',cond:'세트 구매 시'}),
+  D('나임포터리',"[바로배송/선물포장] Who's Cup? 세트 (4pcs)",'컵 4종','E',{tag:'바로배송/선물포장'}),
+  D('나임포터리','[바로배송/선물포장] 띵커(Thinker) 컵 세트 (2pcs)','컵 2종','',{tag:'바로배송/선물포장',check:'포장 정보 미기재'}),
+  D('나임포터리','[바로배송/선물포장] 라이터(Writer) 컵 세트 (2pcs)','컵 2종','',{tag:'바로배송/선물포장',check:'포장 정보 미기재'}),
+  D('노은님','[바로배송/선물포장] 아티스트 프리미엄 디저트 박스 세트 A','컵 2개, 소서 2개, 스푼 2개, 사각접시 2개','H',{tag:'바로배송/선물포장'}),
+  D('노은님','[바로배송/선물포장] 아티스트 프리미엄 디저트 박스 세트 B','컵 2개, 소서 2개, 스푼 2개','H',{tag:'바로배송/선물포장'}),
+  D('노은님','[바로배송/선물포장] 아티스트 프리미엄 디저트 풀박스 세트','원형접시 S·M·L, 보울 M·L, 사각접시, 컵, 소서, 티팟, 포크, 스푼, 트레이','A',{etc:'정품 인증서, 정품 인증카드, 미니 아트웍, 상세 설명서, 공예 박스 보관용 노방 파우치'}),
+  D('류종대','[바로배송/선물포장] PLA 술잔 세트','','AD',{tag:'바로배송/선물포장'}),
+  D('바씨 밀라노','Champagne bucket 샴페인 버켓, 화이트','와인 버켓 1종','A'),
+  D('바씨 밀라노','Set cutlery salad 샐러드 커트러리 세트, 토프','스푼/포크 세트 1종','A'),
+  D('바씨 밀라노','[바로배송/선물포장] 2인 샐러드 세트','샐러드보울 2ea, 샐러드 커트러리 1ea','D',{tag:'바로배송/선물포장',etc:'기프트 박스'}),
+  D('바씨 밀라노','[바로배송/선물포장] 비스켓 함 2ea 세트','비스켓 함 1ea, 미니 비스켓 함 1ea','D',{tag:'바로배송/선물포장',etc:'기프트 박스'}),
+  D('바씨 밀라노','Salad bowl 샐러드 보울, 토프','샐러드 보울 1종','',{check:'포장 정보 미기재'}),
+  D('바씨 밀라노','Soup plate 수프 플레이트, 화이트','수프 플레이트 1종','',{check:'포장 정보 미기재'}),
+  D('박선민','[바로배송/선물포장] 리보틀 고블렛잔 세트','고블렛잔 2종','AD',{tag:'바로배송/선물포장'}),
+  D('신원동','[바로배송/선물포장] 미니 화병 세트','화병 3종 (매병, 주병, 타원병 각1)','A',{tag:'바로배송/선물포장'}),
+  D('이상호','[바로배송/선물포장] A PIECE OF PEACE Plate Set - Black','플레이트 세트 1종','H',{tag:'바로배송/선물포장',etc:'기프트 박스'}),
+  D('이악크래프트','[바로배송/선물포장] 선샤인 쉬퍼 쿠페잔 (단품/세트)','단품: 쿠페잔 1개 / 세트: 쿠페잔 2개','',{etc:'단품: 개별 기프트 박스 / 세트: 개별 기프트 박스+더스트 포장'}),
+  D('살랭','[프리오더 20%] 순면 거즈 아기 낮잠 이불 블랭킷 - 5색','블랭킷 1매','',{etc:'선물상자 포장 포함 (사용안내서·보증서 동봉)'}),
+  D('이왈종','[선물포장] 아트오브제 - 5종','','',{tag:'선물포장',check:'적요 기재 필요 없음 (액자·패키지 포장 상태로 입고)'}),
+  D('권녕미','쿠로하나 시리즈 - 고블렛잔 세트','고블렛 잔 2p (1set)','',{check:'포장 정보 미기재'}),
+  D('권녕미','쿠로하나 시리즈 - 잔 세트','잔 2p (1set)','',{check:'포장 정보 미기재'}),
+  D('청신','린넨 패브릭','패브릭 1종','',{check:'포장 정보 미기재'}),
+];
+
+const BRAND_ORDER = ['허명욱','수토','김현성','전상근','김규태','하경아','이우철',
+  '김쥬쥬 스튜디오','스튜디오 윤여동','프린트베이커리','나임포터리','노은님','류종대',
+  '바씨 밀라노','박선민','신원동','이상호','이악크래프트','살랭','이왈종','권녕미','청신'];
+
+const STATUS = [
+  {k:'all',    label:'전체 상품',     test:()=>true},
+  {k:'set',    label:'포장 지정됨',   test:r=>hasAny(r)},
+  {k:'none',   label:'미지정',        test:r=>!hasAny(r)},
+  {k:'check',  label:'확인 필요',     test:r=>!!r.check},
+  {k:'pickup', label:'오프라인 픽업', test:r=>!!r.pickup},
+];
+
+/* ── 상태 ── */
+const KEY = 'pbg-gift-pkg:v2';
+let rows = [];
+let statusFilter = 'all';
+let brandFilter = '전체';
+let saveTimer = null;
+
+function makeRow(seed, i){
+  const f = {};
+  OPTS.forEach(o => f[o.k] = (seed.flags||'').includes(o.k));
+  return {
+    id: seed.id || ('s'+i),
+    brand: seed.brand, name: seed.name, parts: seed.parts,
+    tag: seed.tag||'', check: seed.check||'', pickup: !!seed.pickup,
+    f, etc: seed.etc||'', cond: seed.cond||'', override: seed.override ?? null, custom: !!seed.custom
+  };
+}
+
+/* ── 적요 문구 조합 ── */
+function buildText(r){
+  if (r.override !== null && r.override !== undefined) return r.override;
+  const parts = [];
+  for (const k of ORDER){
+    if (!r.f[k]) continue;
+    const o = OPTS.find(x => x.k === k);
+    let t = o.text;
+    if ((k === 'D' || k === 'E') && r.f.F) t += '(솔잎)';
+    parts.push(t);
+  }
+  const etc = (r.etc||'').trim();
+  if (etc) parts.push(etc);
+  if (!parts.length) return '';
+  const cond = (r.cond||'').trim();
+  if (cond) parts[parts.length-1] += '(' + cond + ')';
+  return parts.join(', ');
+}
+const hasAny = r => buildText(r).trim().length > 0;
+
+/* ── 렌더 ── */
+const listEl = document.getElementById('list');
+
+function matches(r){
+  const q = document.getElementById('q').value.trim().toLowerCase();
+  if (q && !(r.name+' '+r.brand+' '+r.parts).toLowerCase().includes(q)) return false;
+  const st = STATUS.find(s => s.k === statusFilter);
+  if (st && !st.test(r)) return false;
+  if (brandFilter !== '전체' && r.brand !== brandFilter) return false;
+  return true;
+}
+const visibleRows = () => rows.filter(matches);
+
+function render(){
+  listEl.innerHTML = '';
+  const vis = visibleRows();
+  if (!vis.length){
+    const e = document.createElement('div');
+    e.className = 'empty-state';
+    e.textContent = '조건에 맞는 상품이 없습니다. 검색어를 지우거나 위 집계에서 "전체 상품"을 눌러보세요.';
+    listEl.appendChild(e);
+  } else vis.forEach(r => listEl.appendChild(rowEl(r)));
+  renderTally();
+}
+
+function rowEl(r){
+  const el = document.createElement('div');
+  el.className = 'row';
+
+  const brand = document.createElement('div');
+  brand.className = 'brand'; brand.textContent = r.brand;
+  el.appendChild(brand);
+
+  const body = document.createElement('div');
+  body.className = 'body';
+  el.appendChild(body);
+
+  /* 좌측 */
+  const L = document.createElement('div'); L.className = 'col-l';
+  const lead = document.createElement('div'); lead.className = 'lead';
+  const pn = document.createElement('div'); pn.className = 'pname'; pn.textContent = r.name;
+  lead.appendChild(pn);
+  if (r.parts){
+    const ps = document.createElement('div'); ps.className = 'parts';
+    ps.textContent = '구성품 : ' + r.parts;
+    lead.appendChild(ps);
+  }
+  const fields = document.createElement('div'); fields.className = 'fields';
+  fields.appendChild(txtInput('기타 구성품 추가시 입력 (예: 기프트 박스)', r.etc, v => { r.etc = v; r.override = null; }));
+  fields.appendChild(txtInput('조건 추가시 입력 (예: 2점 구매 시)', r.cond, v => { r.cond = v; r.override = null; }));
+  lead.appendChild(fields);
+  L.appendChild(lead);
+
+  const tail = document.createElement('div'); tail.className = 'tail';
+  const pills = document.createElement('div'); pills.className = 'pills';
+  if (r.tag){ const p = document.createElement('span'); p.className='pill tag'; p.textContent=r.tag; pills.appendChild(p); }
+  if (r.pickup){ const p = document.createElement('span'); p.className='pill tag'; p.textContent='오프라인 픽업'; pills.appendChild(p); }
+  if (r.check){ const p = document.createElement('span'); p.className='pill chk'; p.textContent='확인 필요'; pills.appendChild(p); }
+  if (pills.children.length) tail.appendChild(pills);
+  if (r.check){
+    const n = document.createElement('div'); n.className='note'; n.textContent = '· ' + r.check;
+    tail.appendChild(n);
+  }
+  L.appendChild(tail);
+  body.appendChild(L);
+
+  /* 우측 */
+  const R = document.createElement('div'); R.className = 'col-r';
+  const rh = document.createElement('div'); rh.className='r-head';
+  rh.textContent = '선물 포장 클릭 시 하단 적요란에 추가';
+  R.appendChild(rh);
+
+  const groups = document.createElement('div'); groups.className='groups';
+  GROUPS.forEach(g => {
+    const gw = document.createElement('div'); gw.className='group';
+    const gl = document.createElement('div'); gl.className='g-label'; gl.textContent=g;
+    gw.appendChild(gl);
+    const cw = document.createElement('div'); cw.className='chips';
+    OPTS.filter(o => o.g === g).forEach(o => {
+      const b = document.createElement('button');
+      b.className = 'chip' + (o.dep ? ' dep' : '');
+      b.type = 'button'; b.textContent = o.label;
+      b.setAttribute('aria-pressed', String(!!r.f[o.k]));
+      b.onclick = () => { r.f[o.k] = !r.f[o.k]; r.override = null; save(); render(); };
+      cw.appendChild(b);
+    });
+    gw.appendChild(cw);
+    groups.appendChild(gw);
+  });
+  R.appendChild(groups);
+
+  if (r.f.F && !r.f.D && !r.f.E){
+    const w = document.createElement('div'); w.className='warn';
+    w.textContent = '솔잎은 보자기 포장에 붙는 옵션입니다. 보자기 항목을 함께 체크하세요.';
+    R.appendChild(w);
+  }
+
+  const text = buildText(r);
+  const strip = document.createElement('div'); strip.className='strip';
+  const lab = document.createElement('div'); lab.className='lab'; lab.textContent='적요';
+  strip.appendChild(lab);
+  const out = document.createElement('textarea');
+  out.className='out'; out.rows=1; out.value=text; out.spellcheck=false;
+  out.placeholder = '포장 항목을 체크하면 여기에 문구가 만들어집니다';
+  out.setAttribute('aria-label', r.name + ' 적요 문구');
+  out.addEventListener('input', () => { r.override = out.value; autoGrow(out); save(); renderTally(); });
+  strip.appendChild(out);
+  const cp = document.createElement('button');
+  cp.className='cp'; cp.type='button'; cp.textContent='복사';
+  cp.onclick = () => {
+    if (!out.value.trim()) return setStatus('복사할 문구가 없습니다.');
+    copy(out.value, () => {
+      cp.textContent='복사됨'; cp.classList.add('done');
+      setTimeout(()=>{cp.textContent='복사';cp.classList.remove('done');},1400);
+    }, '적요 문구');
+  };
+  strip.appendChild(cp);
+  R.appendChild(strip);
+  requestAnimationFrame(()=>autoGrow(out));
+
+  if (r.override !== null && r.override !== undefined){
+    const n = document.createElement('div'); n.className='editnote';
+    n.innerHTML = '<span>직접 수정한 문구입니다</span>';
+    const btn = document.createElement('button');
+    btn.textContent = '체크 기준으로 되돌리기';
+    btn.onclick = () => { r.override = null; save(); render(); };
+    n.appendChild(btn);
+    R.appendChild(n);
+  }
+
+  body.appendChild(R);
+  return el;
+}
+
+function txtInput(ph, val, onchange){
+  const i = document.createElement('input');
+  i.type='text'; i.placeholder=ph; i.value = val || '';
+  i.addEventListener('input', () => { onchange(i.value); save(); });
+  i.addEventListener('change', () => render());
+  return i;
+}
+function autoGrow(t){ t.style.height='auto'; t.style.height=t.scrollHeight+'px'; }
+
+/* ── 집계 = 상태 필터 ── */
+function renderTally(){
+  const box = document.getElementById('tally');
+  const q = document.getElementById('q').value.trim().toLowerCase();
+  const scope = rows.filter(r => {
+    if (q && !(r.name+' '+r.brand+' '+r.parts).toLowerCase().includes(q)) return false;
+    if (brandFilter !== '전체' && r.brand !== brandFilter) return false;
+    return true;
+  });
+  box.innerHTML = '';
+  STATUS.forEach(s => {
+    const b = document.createElement('button');
+    b.type='button';
+    b.setAttribute('aria-pressed', String(statusFilter === s.k));
+    b.innerHTML = '<b>' + scope.filter(s.test).length + '</b><span>' + s.label + '</span>';
+    b.onclick = () => {
+      statusFilter = (statusFilter === s.k && s.k !== 'all') ? 'all' : s.k;
+      render();
+    };
+    box.appendChild(b);
+  });
+}
+
+function renderFilters(){
+  const present = new Set(rows.map(r => r.brand));
+  const known = BRAND_ORDER.filter(b => present.has(b));
+  const extras = [...present].filter(b => !BRAND_ORDER.includes(b));
+  const box = document.getElementById('filters');
+  box.innerHTML = '';
+  const add = o => {
+    const b = document.createElement('button');
+    b.className='fchip'; b.type='button'; b.textContent=o;
+    b.setAttribute('aria-pressed', String(brandFilter === o));
+    b.onclick = () => { brandFilter = o; renderFilters(); render(); };
+    box.appendChild(b);
+  };
+  ['전체', ...known, ...extras].forEach(add);
+}
+
+/* ── 복사 ── */
+function copy(text, onOk, label){
+  const done = () => { setStatus((label||'내용') + ' 복사됨'); onOk && onOk(); };
+  if (navigator.clipboard && window.isSecureContext){
+    navigator.clipboard.writeText(text).then(done).catch(()=>fallback(text,done,label));
+  } else fallback(text, done, label);
+}
+function fallback(text, done, label){
+  const ta = document.createElement('textarea');
+  ta.value = text; ta.style.cssText='position:fixed;top:0;left:0;opacity:0';
+  document.body.appendChild(ta); ta.select();
+  let ok=false; try{ ok=document.execCommand('copy'); }catch(e){}
+  document.body.removeChild(ta);
+  if (ok) done(); else {
+    const d = document.getElementById('dlg');
+    document.getElementById('dlgTitle').textContent = label || '복사';
+    document.getElementById('dlgText').value = text;
+    d.showModal();
+  }
+}
+document.getElementById('dlgClose').onclick = () => document.getElementById('dlg').close();
+document.getElementById('dlgCopy').onclick = () => {
+  const t = document.getElementById('dlgText');
+  t.removeAttribute('readonly'); t.select();
+  try { document.execCommand('copy'); setStatus('복사됨'); } catch(e){}
+  t.setAttribute('readonly','');
+};
+
+document.getElementById('copyAll').onclick = () => {
+  const v = visibleRows().map(buildText);
+  if (!v.length) return setStatus('복사할 항목이 없습니다.');
+  copy(v.join('\n'), null, '적요 ' + v.length + '건');
+};
+document.getElementById('copyTsv').onclick = () => {
+  const v = visibleRows();
+  if (!v.length) return setStatus('복사할 항목이 없습니다.');
+  copy(v.map(r => [r.brand, r.name, buildText(r)].join('\t')).join('\n'), null, '표 ' + v.length + '행');
+};
+document.getElementById('reset').onclick = () => {
+  if (!confirm('모든 체크와 직접 수정 내용을 원본 시트 상태로 되돌립니다. 진행할까요?')) return;
+  rows = SEED.map(makeRow);
+  save(); renderFilters(); render();
+  setStatus('원본 상태로 되돌렸습니다.');
+};
+document.getElementById('addBtn').onclick = () => {
+  const name = prompt('상품명을 입력하세요');
+  if (!name || !name.trim()) return;
+  const brand = (prompt('브랜드명을 입력하세요') || '직접 추가').trim();
+  const r = makeRow({brand, name:name.trim(), parts:'', flags:'', custom:true}, 'c'+Date.now());
+  r.id = 'c'+Date.now();
+  rows.unshift(r);
+  brandFilter='전체'; statusFilter='all';
+  document.getElementById('q').value='';
+  save(); renderFilters(); render();
+  setStatus('상품을 추가했습니다.');
+};
+
+/* ── 저장 ── */
+function serialize(){
+  return JSON.stringify(rows.map(r => ({
+    id:r.id, brand:r.brand, name:r.name, parts:r.parts, tag:r.tag,
+    check:r.check, pickup:r.pickup,
+    flags: OPTS.filter(o => r.f[o.k]).map(o => o.k).join(''),
+    etc:r.etc, cond:r.cond, override:r.override, custom:r.custom
+  })));
+}
+function save(){
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(async () => {
+    try {
+      await window.storage.set(KEY, serialize());
+      setStatus('저장됨 · ' + new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'}));
+    } catch(e){ setStatus('저장에 실패했습니다. 복사 기능은 그대로 쓸 수 있습니다.'); }
+  }, 450);
+}
+function setStatus(s){ document.getElementById('status').textContent = s; }
+
+async function load(){
+  let saved = null;
+  try {
+    const res = await window.storage.get(KEY);
+    if (res && res.value) saved = JSON.parse(res.value);
+  } catch(e){}
+  if (Array.isArray(saved) && saved.length){
+    rows = saved.map(makeRow);
+    setStatus('이전 작업을 불러왔습니다.');
+  } else {
+    rows = SEED.map(makeRow);
+    setStatus('원본 시트 기준으로 시작합니다.');
+  }
+  renderFilters(); render();
+}
+
+document.getElementById('q').addEventListener('input', render);
+load();
+</script>
