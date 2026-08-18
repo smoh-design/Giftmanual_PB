@@ -1,5 +1,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<title>선물포장 적요 생성기</title>
+<meta name="robots" content="noindex, nofollow">
 <style>
   :root{
     --canvas:#E3E7E0;      /* bg/canvas — 액션 버튼 배경 */
@@ -626,6 +628,21 @@ document.getElementById('addBtn').onclick = () => {
   setStatus('상품을 추가했습니다.');
 };
 
+/* ── 저장소 어댑터 ──
+   Claude 아티팩트 안에서는 window.storage,
+   일반 웹서버에 올렸을 때는 브라우저 로컬 저장을 사용합니다. */
+const STORE = (typeof window !== 'undefined' && window.storage && typeof window.storage.get === 'function')
+  ? {
+      kind:'claude',
+      async get(k){ const r = await window.storage.get(k); return r && r.value ? r.value : null; },
+      async set(k,v){ await window.storage.set(k,v); }
+    }
+  : {
+      kind:'local',
+      async get(k){ return localStorage.getItem(k); },
+      async set(k,v){ localStorage.setItem(k,v); }
+    };
+
 /* ── 저장 ── */
 function serialize(){
   return JSON.stringify(rows.map(r => ({
@@ -639,7 +656,7 @@ function save(){
   clearTimeout(saveTimer);
   saveTimer = setTimeout(async () => {
     try {
-      await window.storage.set(KEY, serialize());
+      await STORE.set(KEY, serialize());
       setStatus('저장됨 · ' + new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'}));
     } catch(e){ setStatus('저장에 실패했습니다. 복사 기능은 그대로 쓸 수 있습니다.'); }
   }, 450);
@@ -649,8 +666,8 @@ function setStatus(s){ document.getElementById('status').textContent = s; }
 async function load(){
   let saved = null;
   try {
-    const res = await window.storage.get(KEY);
-    if (res && res.value) saved = JSON.parse(res.value);
+    const raw = await STORE.get(KEY);
+    if (raw) saved = JSON.parse(raw);
   } catch(e){}
   if (Array.isArray(saved) && saved.length){
     rows = saved.map(makeRow);
